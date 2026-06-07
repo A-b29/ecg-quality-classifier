@@ -8,7 +8,7 @@ from sklearn.metrics import classification_report, confusion_matrix, roc_auc_sco
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-from dataset import ECGQualityDataset
+from dataset import ECGQualityDataset, CLASS_NAMES
 from model import ECGQualityCNN
 
 ROOT        = Path(__file__).resolve().parent.parent
@@ -16,7 +16,6 @@ RECORDS     = ROOT / 'data' / 'records.csv'
 MODEL_PATH  = ROOT / 'outputs' / 'best_model.pt'
 CM_PATH     = ROOT / 'outputs' / 'confusion_matrix.png'
 DEVICE      = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-CLASS_NAMES = ['Clean', 'Noisy', 'Artifact']
 
 
 def main():
@@ -26,8 +25,9 @@ def main():
     model.eval().to(DEVICE)
 
     df = pd.read_csv(RECORDS)
-    _, val_df = train_test_split(df, test_size=0.2, stratify=df['label'], random_state=42)
-    val_dl = DataLoader(ECGQualityDataset(val_df), batch_size=64, shuffle=False, num_workers=2)
+    _, val_df = train_test_split(df, test_size=0.2, random_state=42)
+    val_dl = DataLoader(ECGQualityDataset(val_df, train=False),
+                        batch_size=64, shuffle=False, num_workers=2)
 
     # -- Collect predictions -------------------------------------------------
     all_labels, all_preds, all_probs = [], [], []

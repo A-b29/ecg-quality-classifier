@@ -23,12 +23,25 @@ Input [B, 12, 5000]
 Output [B, 3]  (Clean / Noisy / Artifact)
 ```
 
-## Dataset
+## Dataset & labeling
 
-PhysioNet / Computing in Cardiology Challenge 2021 — Georgia 12-lead subset
-(~10,000 recordings). Diagnostic SNOMED-CT codes are remapped into 3 quality
-categories. Class imbalance (clean ≫ noisy > artifact) is handled with a
-`WeightedRandomSampler` during training.
+Real ECGs come from the PhysioNet / Computing in Cardiology Challenge 2021 —
+Georgia 12-lead subset. A 2,000-record sample is used by default (configurable in
+`run_download.py`).
+
+**Important:** PhysioNet 2021 contains *diagnostic* labels (SNOMED-CT codes for
+arrhythmias, etc.), **not** signal-quality labels. Rather than mis-repurpose
+diagnosis codes as quality labels (which would be meaningless), this project takes
+the standard approach for quality classification without quality labels:
+
+- every real recording is treated as a **Clean** source signal;
+- **Noisy** (Gaussian noise + baseline wander) and **Artifact** (lead dropout +
+  motion-artifact spikes) examples are **synthesised on the fly** from those clean
+  signals.
+
+This produces perfectly balanced, fully controlled classes. Training corruption is
+random per sample (effectively unlimited augmentation); validation corruption is
+deterministic per record, so metrics are reproducible. See `src/dataset.py`.
 
 ## Results
 
@@ -52,7 +65,7 @@ pip install -r requirements.txt
 # 2. Download data (~1.2 GB, Georgia subset)
 python run_download.py
 
-# 3. Build the label manifest
+# 3. Catalog the records into data/records.csv
 python build_manifest.py
 
 # 4. Train (writes outputs/best_model.pt)
@@ -71,7 +84,7 @@ streamlit run app.py
 .
 ├── data/
 │   ├── raw/            # WFDB files from PhysioNet (git-ignored)
-│   └── records.csv     # parsed label manifest (generated)
+│   └── records.csv     # record manifest (generated)
 ├── src/
 │   ├── dataset.py      # ECGQualityDataset
 │   ├── model.py        # ECGQualityCNN
@@ -93,8 +106,12 @@ streamlit run app.py
    more data for a quality (not diagnostic) task.
 2. **Global Average Pooling** — length-agnostic, fewer parameters than a flattened
    FC layer, and acts as regularization.
-3. **Weighted sampler + CrossEntropyLoss** — clean ECGs dominate; without
-   rebalancing the model collapses to predicting "Clean" everywhere.
+3. **Synthetic labels instead of repurposed diagnosis codes** — PhysioNet 2021 has
+   no quality labels. Faking them from SNOMED-CT diagnosis codes (e.g. labeling
+   "sinus rhythm" as "noisy") yields a model that secretly detects diagnoses, not
+   quality. Controlled synthetic corruption gives honest, balanced, well-defined
+   classes — and re-normalising after corruption forces the model to learn
+   morphology rather than just overall amplitude.
 4. **Per-lead z-score normalization** — removes per-patient/lead/electrode
    amplitude confounds before the CNN sees the signal.
 
