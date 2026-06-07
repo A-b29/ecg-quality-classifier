@@ -1,0 +1,28 @@
+# Data (large — download separately via run_download.py)
+data/raw/*
+!data/raw/.gitkeep
+data/*.csv
+
+# Generated model artifacts
+outputs/*.pt
+outputs/*.png
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE / OS / tooling
+.idea/
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
