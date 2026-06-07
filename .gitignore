@@ -3,9 +3,11 @@ data/raw/*
 !data/raw/.gitkeep
 data/*.csv
 
-# Generated model artifacts
+# Generated model artifacts (keep the small demo model + headline figure)
 outputs/*.pt
 outputs/*.png
+!outputs/best_model.pt
+!outputs/confusion_matrix.png
 
 # Python
 __pycache__/

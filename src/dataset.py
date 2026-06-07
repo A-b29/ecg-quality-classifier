@@ -56,36 +56,39 @@ class ECGQualityDataset(Dataset):
         return _zscore(sig)
 
     # -- Synthetic corruption ------------------------------------------------
+    # Corruptions are deliberately subtle (closer to real-world degradation) and
+    # each class randomly applies one or both of its mechanisms, so the classes
+    # overlap and the task is non-trivial rather than perfectly separable.
     def _corrupt(self, sig: np.ndarray, cls: int, rng: np.random.Generator) -> np.ndarray:
         if cls == 0:                                # Clean
             return sig
 
         sig = sig.copy()
+        mode = int(rng.integers(0, 3))              # 0 = mechanism A, 1 = B, 2 = both
+
         if cls == 1:                                # Noisy
-            # broadband (EMG-like) Gaussian noise
-            sigma = rng.uniform(0.15, 0.35)
-            sig = sig + rng.normal(0, sigma, sig.shape).astype(np.float32)
-            # low-frequency baseline wander
-            t = np.linspace(0, 10, TARGET_LEN, dtype=np.float32)
-            freq = rng.uniform(0.15, 0.5)
-            phase = rng.uniform(0, 2 * np.pi)
-            wander = np.sin(2 * np.pi * freq * t + phase) * rng.uniform(0.3, 0.7)
-            sig = sig + wander[np.newaxis, :]
+            if mode in (0, 2):                      # broadband (EMG-like) noise
+                sigma = rng.uniform(0.05, 0.15)
+                sig = sig + rng.normal(0, sigma, sig.shape).astype(np.float32)
+            if mode in (1, 2):                      # low-frequency baseline wander
+                t = np.linspace(0, 10, TARGET_LEN, dtype=np.float32)
+                freq = rng.uniform(0.15, 0.5)
+                phase = rng.uniform(0, 2 * np.pi)
+                wander = np.sin(2 * np.pi * freq * t + phase) * rng.uniform(0.10, 0.30)
+                sig = sig + wander[np.newaxis, :]
             return sig.astype(np.float32)
 
         # cls == 2  -> Artifact
-        # electrode detachment: a few leads go flat
-        n_drop = int(rng.integers(2, 5))
-        for lead in rng.choice(12, n_drop, replace=False):
-            sig[lead] = 0.0
-        # motion-artifact bursts: large transient spikes on some leads
-        n_spike_leads = int(rng.integers(1, 4))
-        for lead in rng.choice(12, n_spike_leads, replace=False):
-            for _ in range(int(rng.integers(3, 8))):
-                p = int(rng.integers(0, TARGET_LEN - 60))
-                w = int(rng.integers(10, 60))
-                amp = rng.uniform(3.0, 8.0) * (1 if rng.random() < 0.5 else -1)
-                sig[lead, p:p + w] += amp
+        if mode in (0, 2):                          # electrode detachment: 1-2 flat leads
+            for lead in rng.choice(12, int(rng.integers(1, 3)), replace=False):
+                sig[lead] = 0.0
+        if mode in (1, 2):                          # motion-artifact bursts (small spikes)
+            for lead in rng.choice(12, int(rng.integers(1, 3)), replace=False):
+                for _ in range(int(rng.integers(2, 5))):
+                    p = int(rng.integers(0, TARGET_LEN - 60))
+                    w = int(rng.integers(10, 50))
+                    amp = rng.uniform(1.5, 4.0) * (1 if rng.random() < 0.5 else -1)
+                    sig[lead, p:p + w] += amp
         return sig.astype(np.float32)
 
     # -- Item ----------------------------------------------------------------

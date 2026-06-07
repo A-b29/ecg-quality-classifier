@@ -18,12 +18,18 @@ def main():
         raise SystemExit(f"Raw data not found at {RAW_DIR}. Run `python run_download.py` first.")
 
     records = []
+    skipped = 0
     for hea_path in sorted(RAW_DIR.glob('*.hea')):
         stem = hea_path.with_suffix('')
+        # require the signal (.mat) file too -- a few downloads 404'd
+        if not stem.with_suffix('.mat').exists():
+            skipped += 1
+            continue
         try:
             rec = wfdb.rdheader(str(stem))
         except Exception as e:
             print(f"  ! skipping {stem.name}: {e}")
+            skipped += 1
             continue
         records.append({
             'path':    str(stem.resolve()),   # absolute -> cwd-independent loading
@@ -38,7 +44,7 @@ def main():
     df = pd.DataFrame(records)
     OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(OUT_CSV, index=False)
-    print(f"Saved {len(df)} clean source records to {OUT_CSV}")
+    print(f"Saved {len(df)} clean source records to {OUT_CSV} (skipped {skipped} incomplete)")
     print(f"Sampling frequencies: {df['fs'].value_counts().to_dict()}")
     print(f"Signal lengths (samples): min={df['sig_len'].min()} "
           f"median={int(df['sig_len'].median())} max={df['sig_len'].max()}")
