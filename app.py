@@ -44,9 +44,26 @@ def preprocess(signal, fs):
     return (sig - mu) / sd
 
 
+def parse_header(hea_text):
+    """Extract the record name and referenced data-file name(s) from a WFDB
+    header. wfdb resolves the signal file from the name written *inside* the
+    header, so we must save the uploaded files under exactly these names."""
+    lines = [l for l in hea_text.splitlines()
+             if l.strip() and not l.lstrip().startswith('#')]
+    rec_tokens = lines[0].split()
+    record_name = rec_tokens[0]
+    n_sig = int(rec_tokens[1])
+    data_files = []
+    for line in lines[1:1 + n_sig]:
+        fname = line.split()[0]
+        if fname not in data_files:
+            data_files.append(fname)
+    return record_name, data_files
+
+
 # -- UI ---------------------------------------------------------------------
 st.title('🫀 ECG Signal Quality Classifier')
-st.caption('Upload a 12-lead ECG (WFDB .hea + .dat pair) to get an automated quality assessment.')
+st.caption('Upload a 12-lead ECG (WFDB .hea header + .dat/.mat signal file) to get an automated quality assessment.')
 
 with st.sidebar:
     st.header('About')
@@ -64,22 +81,37 @@ if not MODEL_PATH.exists():
              "Run `python src/train.py` first.")
     st.stop()
 
-uploaded_hea = st.file_uploader('Upload .hea file', type=['hea'])
-uploaded_dat = st.file_uploader('Upload .dat file', type=['dat'])
+uploaded_hea = st.file_uploader('Upload .hea header file', type=['hea'])
+uploaded_dat = st.file_uploader('Upload .dat / .mat signal file', type=['dat', 'mat'])
 
 if uploaded_hea and uploaded_dat:
     model = load_model()
 
+    hea_bytes = uploaded_hea.getvalue()
+    dat_bytes = uploaded_dat.getvalue()
+
+    try:
+        record_name, data_files = parse_header(hea_bytes.decode('utf-8', 'replace'))
+    except Exception as e:
+        st.error(f'Could not parse the .hea header: {e}')
+        st.stop()
+
+    if len(data_files) != 1:
+        st.error('This header references multiple signal files; please upload a '
+                 'single-file WFDB record.')
+        st.stop()
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        hea_path = os.path.join(tmpdir, 'record.hea')
-        dat_path = os.path.join(tmpdir, 'record.dat')
-        with open(hea_path, 'wb') as f:
-            f.write(uploaded_hea.read())
-        with open(dat_path, 'wb') as f:
-            f.write(uploaded_dat.read())
+        # Save the files under the *exact* names the header references, so wfdb
+        # can resolve the signal file (it ignores the path we pass and reads the
+        # name from inside the header).
+        with open(os.path.join(tmpdir, record_name + '.hea'), 'wb') as f:
+            f.write(hea_bytes)
+        with open(os.path.join(tmpdir, data_files[0]), 'wb') as f:
+            f.write(dat_bytes)
 
         try:
-            sig, meta = wfdb.rdsamp(os.path.join(tmpdir, 'record'))
+            sig, meta = wfdb.rdsamp(os.path.join(tmpdir, record_name))
         except Exception as e:
             st.error(f'Failed to read file: {e}')
             st.stop()
@@ -124,6 +156,6 @@ if uploaded_hea and uploaded_dat:
         st.pyplot(fig)
 
 elif uploaded_hea and not uploaded_dat:
-    st.warning('Please also upload the corresponding .dat file.')
+    st.warning('Please also upload the corresponding .dat / .mat signal file.')
 else:
-    st.info('Upload a WFDB .hea and .dat file pair to classify signal quality.')
+    st.info('Upload a WFDB .hea header and its .dat / .mat signal file to classify signal quality.')
