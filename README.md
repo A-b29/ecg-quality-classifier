@@ -26,8 +26,8 @@ Output [B, 3]  (Clean / Noisy / Artifact)
 ## Dataset & labeling
 
 Real ECGs come from the PhysioNet / Computing in Cardiology Challenge 2021 —
-Georgia 12-lead subset. A 2,000-record sample is used by default (configurable in
-`run_download.py`).
+Georgia 12-lead subset (~10,290 records, downloaded by default). Set `N_SUBDIRS=2`
+in `run_download.py` for a quick ~2,000-record run instead.
 
 **Important:** PhysioNet 2021 contains *diagnostic* labels (SNOMED-CT codes for
 arrhythmias, etc.), **not** signal-quality labels. Rather than mis-repurpose
@@ -45,27 +45,31 @@ deterministic per record, so metrics are reproducible. See `src/dataset.py`.
 
 ## Results
 
-Trained on 1,998 Georgia records (20 epochs, ~7 min on CPU). Validation set =
-400 records with deterministic, balanced synthetic corruption.
+Trained on the full Georgia subset — 10,290 records (15 epochs, ~10 min on CPU).
+Validation set = 2,058 records with deterministic, balanced synthetic corruption.
 
 | Class    | Precision | Recall | F1   |
 |----------|-----------|--------|------|
-| Clean    | 0.81      | 0.97   | 0.88 |
-| Noisy    | 1.00      | 1.00   | 1.00 |
-| Artifact | 0.96      | 0.77   | 0.86 |
-| **Macro**| **0.93**  |**0.91**|**0.91**|
+| Clean    | 0.88      | 0.97   | 0.93 |
+| Noisy    | 1.00      | 0.99   | 1.00 |
+| Artifact | 0.97      | 0.87   | 0.92 |
+| **Macro**| **0.95**  |**0.95**|**0.95**|
 
-**Overall accuracy 92% · Macro ROC-AUC 0.973.**
+**Overall accuracy 95% · Macro ROC-AUC 0.993.**
 
 ![Confusion matrix](outputs/confusion_matrix.png)
 
-**Reading the result.** *Noisy* is detected perfectly — broadband noise and
-baseline wander change the whole signal's texture, which the CNN picks up easily.
-The genuine difficulty is *Artifact* vs *Clean*: the subtlest artifacts (a couple
-of small motion spikes on one or two leads) closely resemble a clean trace, so 30
-of 133 artifact records are read as clean (recall 0.77). That is a sensible,
-explainable failure mode rather than a leak — note the model never confuses Noisy
-with anything.
+**Reading the result.** *Noisy* is detected almost perfectly (682/686) — broadband
+noise and baseline wander change the whole signal's texture, which the CNN picks up
+easily. The genuine difficulty is *Artifact* vs *Clean*: the subtlest artifacts (a
+couple of small motion spikes on one or two leads) closely resemble a clean trace,
+so 87 of 686 artifact records are read as clean (recall 0.87). That is a sensible,
+explainable failure mode rather than a leak — the model never confuses Noisy with
+anything.
+
+> Scaling the data from 2k → 10k records lifted accuracy 0.92 → 0.95, macro F1
+> 0.91 → 0.95, and macro ROC-AUC 0.973 → 0.993, mostly by improving Artifact
+> recall (0.77 → 0.87).
 
 ## Quick start
 

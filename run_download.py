@@ -19,7 +19,7 @@ ROOT    = Path(__file__).resolve().parent
 OUT_DIR = ROOT / 'data' / 'raw' / 'georgia'
 BASE    = 'https://physionet.org/files/challenge-2021/1.0.3/'
 
-N_SUBDIRS = 2    # g1..g2 = ~2000 records (~220 MB)
+N_SUBDIRS = 11   # all Georgia subdirs = ~10,300 records (~1.1 GB); use 2 for a quick run
 WORKERS   = 8
 
 
